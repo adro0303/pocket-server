@@ -13,6 +13,15 @@ mkdir -p "$STATE_DIR"
 # boot script (una sola vez al arrancar) no lo pilla
 sh "$HOME_DIR/scripts/cpu-limit.sh"
 
+# ponytail: reafirma Doze desactivado en cada pasada, mismo motivo que el
+# techo de CPU de arriba - detectado en real que el aviso "tun0 down" se
+# repitio ~1h seguida (2026-09-04, 15:30-16:26) mientras el PC de la misma
+# red navegaba sin problema: dumpsys deviceidle mostraba mCharging=false
+# (charge-control.sh en estado "limited" hace horas, ver quirk de hardware
+# documentado ahi) + mLightState=IDLE. Sin esto, el boot script (una sola
+# vez al arrancar) no cubre si algo del sistema reactiva Doze mas tarde.
+su -c "dumpsys deviceidle disable" >/dev/null 2>&1
+
 if ! pgrep -x sshd >/dev/null 2>&1; then
   echo "$(ts) sshd down, restarting" >> "$LOG"
   termux-wake-lock
@@ -78,8 +87,11 @@ now_epoch=$(date '+%s')
 since_epoch=$(cat "$TS_HEALTH_STATE" 2>/dev/null || echo "$now_epoch")
 # ponytail: una sola llamada a logcat, reusada para los dos greps de abajo
 # (salud de Tailscale + kills por falta de RAM) en vez de invocar logcat
-# dos veces por pasada
-new_logcat=$(su -c "logcat -d -b all -T $since_epoch" 2>/dev/null)
+# dos veces por pasada. El ".000000" es obligatorio: logcat -T con un
+# entero pelado (sin punto decimal) no lo reconoce como epoch y ese
+# invocado ignora el filtro en silencio, volcando casi todo el buffer -
+# eso disparaba el mismo aviso de kill/salud varias veces seguidas.
+new_logcat=$(su -c "logcat -d -b all -T ${since_epoch}.000000" 2>/dev/null)
 echo "$now_epoch" > "$TS_HEALTH_STATE"
 health_line=$(echo "$new_logcat" | grep 'gojni.*warnable=' | grep 'error:' | grep -Ev 'warnable=(wantrunning-false|warming-up)' | tail -1)
 if [ -n "$health_line" ]; then

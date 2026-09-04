@@ -1,0 +1,8 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# ponytail: dispositivo estacionario 24/7, no un movil de mano - Doze
+# (light+deep) le corta la red en segundo plano igual que a cualquier
+# telefono en el bolsillo, y el corte de carga por salud de bateria
+# (charge-control.sh) hace que Android se crea "desenchufado" durante
+# horas cada ciclo (quirk de hardware ya documentado ahi), lo que dispara
+# Doze con mas frecuencia de la que tendria un movil enchufado de verdad.
+su -c "dumpsys deviceidle disable"
