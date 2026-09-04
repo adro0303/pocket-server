@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/bash
+termux-wake-lock
+cd /data/data/com.termux/files/home
+nohup python3 scripts/llm-proxy.py > llm-proxy.log 2>&1 &

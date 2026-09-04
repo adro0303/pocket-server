@@ -1,0 +1,24 @@
+# Credenciales - nunca deben subirse
+.imap_pass
+.twitter_creds
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+laptop_shutdown*
+
+# Datos personales
+resume-1.pdf
+*.pdf
+
+# Estado/logs locales del dispositivo (no forman parte del codigo)
+state/
+*.log
+*.jsonl
+
+# Notas de trabajo de sesion (no es documentacion publica)
+CONTEXT.md
+
+# Python
+__pycache__/
+*.pyc
