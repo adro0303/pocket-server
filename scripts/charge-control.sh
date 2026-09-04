@@ -57,9 +57,16 @@ if [ "$state" = "normal" ] && [ "$plugged" != "UNPLUGGED" ] && [ "$pct" -ge "$ST
 fi
 
 if [ "$state" = "limited" ]; then
+  # ponytail: no fiarse de "plugged" aqui - confirmado en real que con
+  # batt_slate_mode=1 tanto termux-battery-status como el sysfs crudo
+  # (usb/online) informan UNPLUGGED aunque el cable siga puesto (el propio
+  # corte de carga rompe la deteccion de cable en este hardware). Con ese
+  # chequeo, el siguiente tick de cron reanudaba la carga sin importar el
+  # %, asi que oscilaba cortar/reanudar cada 15 min y nunca sostenia el
+  # corte. Sin cable de verdad tampoco pasa nada esperando a RESUME_AT: no
+  # hay nada que cargar de todos modos hasta que baje el %.
   should_resume=""
   [ "$pct" -le "$RESUME_AT" ] && should_resume=1
-  [ "$plugged" = "UNPLUGGED" ] && should_resume=1
   if [ -n "$should_resume" ]; then
     ok=""
     i=0

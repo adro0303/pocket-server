@@ -6,7 +6,9 @@ import json
 import os
 import re
 import smtplib
+import socket
 import subprocess
+import threading
 import time
 import urllib.request
 from email.mime.text import MIMEText
@@ -42,7 +44,11 @@ LAPTOP_IP = "100.x.x.x"  # IP Tailscale de tu portatil (tailscale ip -4 en el po
 LAPTOP_USER = "tu_usuario"
 SHUTDOWN_KEY = os.path.join(HOME, ".ssh", "laptop_shutdown")
 CONFIRM_STATE = os.path.join(HOME, "state", "shutdown-confirm.txt")
-CONFIRM_WINDOW_SECONDS = 60
+# ponytail: 60s se quedaba corto en real - entre el retraso de la
+# notificacion de Telegram y escribir CONFIRMAR a mano, el "CONFIRMAR" del
+# usuario llegaba pasada la ventana y caia en silencio al asistente
+# generico (contesto sobre bateria en vez de apagar). Ampliado a 120s.
+CONFIRM_WINDOW_SECONDS = 120
 
 
 def send_wake_packet():
@@ -64,13 +70,22 @@ def request_shutdown_confirm():
     )
 
 
-def shutdown_confirm_pending():
+def _shutdown_confirm_age():
     try:
         with open(CONFIRM_STATE) as f:
-            ts = float(f.read().strip())
+            return time.time() - float(f.read().strip())
     except Exception:
-        return False
-    return (time.time() - ts) <= CONFIRM_WINDOW_SECONDS
+        return None
+
+
+def shutdown_confirm_pending():
+    age = _shutdown_confirm_age()
+    return age is not None and age <= CONFIRM_WINDOW_SECONDS
+
+
+def shutdown_confirm_expired():
+    age = _shutdown_confirm_age()
+    return age is not None and age > CONFIRM_WINDOW_SECONDS
 
 
 def clear_shutdown_confirm():
@@ -91,6 +106,30 @@ def send_shutdown_signal():
         return "Orden de apagado enviada al portatil."
     err = (result.stderr or result.stdout).strip()
     return f"No se pudo conectar por SSH (codigo {result.returncode}): {err[:200]}"
+
+
+def laptop_reachable(timeout=5):
+    try:
+        with socket.create_connection((LAPTOP_IP, 22), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def notify_shutdown_result():
+    # ponytail: unico rastro real disponible de que el poweroff surtio
+    # efecto sin tocar el comando forzado del portatil (sigue restringido
+    # a "sudo poweroff", nada mas) - si deja de responder por SSH, se apago.
+    time.sleep(20)
+    text = (
+        "El portatil ya no responde por SSH: se ha apagado."
+        if not laptop_reachable()
+        else "El portatil sigue respondiendo por SSH pasados 20s, puede que no se haya apagado - revisalo."
+    )
+    try:
+        api_call("sendMessage", {"chat_id": CHAT_ID, "text": text})
+    except Exception:
+        pass
 
 
 # ponytail: mandar/responder un correo es visible para un tercero y no se
@@ -453,6 +492,16 @@ def main():
                 try:
                     api_call("sendMessage", {"chat_id": CHAT_ID, "text": answer})
                     print(f"shutdown ejecutado: {answer[:80]}", flush=True)
+                except Exception as e:
+                    print(f"sendMessage error: {e}", flush=True)
+                if answer.startswith("Orden de apagado enviada"):
+                    threading.Thread(target=notify_shutdown_result, daemon=True).start()
+                continue
+            if CONFIRM_RE.match(text) and shutdown_confirm_expired():
+                clear_shutdown_confirm()
+                try:
+                    api_call("sendMessage", {"chat_id": CHAT_ID, "text": "La confirmacion de apagado caduco, no se hizo nada. Vuelve a pedir que apague si quieres hacerlo de verdad."})
+                    print("shutdown confirm caducado", flush=True)
                 except Exception as e:
                     print(f"sendMessage error: {e}", flush=True)
                 continue
