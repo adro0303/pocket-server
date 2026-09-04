@@ -1,6 +1,6 @@
 <div align="center">
 
-# AXP.OS Bridge
+# Pocket Server
 
 ### A de-Googled Android phone as a permanent Wake-on-LAN bridge, local-LLM assistant, and inbox/market watchdog
 
@@ -228,7 +228,7 @@ This isn't a one-command installer — it's a fully manual setup, documented so 
 # 2. Inside Termux
 pkg install python git openssh cronie jq termux-api
 git clone <this-repo-url>
-cd axp-os
+cd pocket-server
 
 # 3. Credentials — never commit these, they're already gitignored
 echo "your-gmail-app-password" > ~/.imap_pass
@@ -269,7 +269,7 @@ git clone https://github.com/ggml-org/llama.cpp && cd llama.cpp && cmake -B buil
 ## Project structure
 
 ```text
-axp-os/
+pocket-server/
 ├── scripts/          # Everything that runs on the phone via cron or Telegram
 │   ├── lib.sh                  # Shared: Telegram send + logging, local-LLM calls
 │   ├── watchdog.sh              # 5-min liveness + OOM + CPU-cap loop

@@ -1,6 +1,6 @@
 <div align="center">
 
-# AXP.OS Bridge
+# Pocket Server
 
 ### Un móvil Android sin Google como puente permanente de Wake-on-LAN, asistente con IA local, y vigilante de correo/mercados
 
@@ -228,7 +228,7 @@ Esto no es un instalador de un comando — es un montaje totalmente manual, docu
 # 2. Dentro de Termux
 pkg install python git openssh cronie jq termux-api
 git clone <url-de-este-repo>
-cd axp-os
+cd pocket-server
 
 # 3. Credenciales — nunca las subas, ya estan en el .gitignore
 echo "tu-app-password-de-gmail" > ~/.imap_pass
@@ -269,7 +269,7 @@ git clone https://github.com/ggml-org/llama.cpp && cd llama.cpp && cmake -B buil
 ## Estructura del proyecto
 
 ```text
-axp-os/
+pocket-server/
 ├── scripts/          # Todo lo que corre en el movil via cron o Telegram
 │   ├── lib.sh                  # Compartido: envio+log a Telegram, llamadas al LLM local
 │   ├── watchdog.sh              # Bucle de vida cada 5 min + OOM + limite de CPU
