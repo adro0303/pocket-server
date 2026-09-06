@@ -68,22 +68,38 @@ if [ "$state" = "limited" ]; then
   should_resume=""
   [ "$pct" -le "$RESUME_AT" ] && should_resume=1
   if [ -n "$should_resume" ]; then
+    # ponytail: el "$plugged" de la cabecera del script es de ANTES de bajar
+    # slate_mode y por tanto siempre sospechoso de dar el falso UNPLUGGED que
+    # documenta el comentario de arriba - usarlo aqui daba "carga reanudada"
+    # aunque no hubiera cable ni cargando de verdad. Se relee fresco tras
+    # cada intento de "echo 0", que es cuando la deteccion vuelve a fiarse.
     ok=""
+    charging=""
     i=0
     while [ "$i" -lt "$MAX_RETRIES" ]; do
       su -c "echo 0 > $SLATE" >> "$LOG" 2>&1
       sleep 3
-      new_status=$(termux-battery-status 2>/dev/null | jq -r '.status' 2>/dev/null)
-      if [ "$new_status" = "CHARGING" ] || [ "$new_status" = "FULL" ] || [ "$plugged" = "UNPLUGGED" ]; then
+      new_info=$(termux-battery-status 2>/dev/null)
+      new_status=$(echo "$new_info" | jq -r '.status' 2>/dev/null)
+      new_plugged=$(echo "$new_info" | jq -r '.plugged' 2>/dev/null)
+      if [ "$new_status" = "CHARGING" ] || [ "$new_status" = "FULL" ]; then
+        ok=1
+        charging=1
+        break
+      fi
+      if [ "$new_plugged" = "UNPLUGGED" ]; then
         ok=1
         break
       fi
       i=$((i + 1))
     done
     echo "normal" > "$STATE_FILE"
-    if [ -n "$ok" ]; then
+    if [ -n "$charging" ]; then
       echo "$(ts) carga reanudada al ${pct}% (intento $((i + 1)))" >> "$LOG"
       send_telegram "Bateria del J5 al ${pct}%: carga reanudada."
+    elif [ -n "$ok" ]; then
+      echo "$(ts) sin cable al ${pct}%, corte de carga desactivado sin cargar" >> "$LOG"
+      send_telegram "Bateria del J5 al ${pct}%: no hay cable puesto, no hay nada que cargar. Corte de carga desactivado por si acaso."
     else
       now=$(date +%s)
       last_reboot=$(cat "$COOLDOWN_FILE" 2>/dev/null || echo 0)

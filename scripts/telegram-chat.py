@@ -51,6 +51,55 @@ CONFIRM_STATE = os.path.join(HOME, "state", "shutdown-confirm.txt")
 CONFIRM_WINDOW_SECONDS = 120
 
 
+# ponytail: encender/apagar una luz es reversible e inmediato, igual que el
+# magic packet de WAKE_RE - no hace falta el patron de borrador+CONFIRMAR
+# que usan correo/tweet (eso es para lo irreversible o visible a terceros).
+LUCES_SCRIPT = os.path.join(HOME, "scripts", "luces.py")
+LUCES_ALIASES = {
+    "despacho": "Luz despacho",
+    "salon": "Luz salon",
+    "salón": "Luz salon",
+    "pasillo": "Pasillo",
+    "espejo": "Espejo",
+    "zapatero": "Zapatero",
+    "entrada": "entrada",
+    "todas": "todas",
+}
+LUCES_COMMAND_RE = re.compile(
+    r"^/?luces\s+(?P<target>\S+)\s+(?P<action>on|off|encender|apagar)\s*$",
+    re.IGNORECASE,
+)
+LUCES_NATURAL_RE = re.compile(
+    r"\b(?P<verb>enc(?:e|ie|ié)nd\w*|prend\w*|apag\w*)\b.{0,30}?"
+    r"\b(?P<target>despacho|sal[oó]n|pasillo|espejo|zapatero|entrada|todas)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def parse_luces(text):
+    m = LUCES_COMMAND_RE.match(text)
+    if m:
+        action = "on" if m.group("action").lower() in ("on", "encender") else "off"
+        return m.group("target"), action
+    m = LUCES_NATURAL_RE.search(text)
+    if m:
+        action = "off" if m.group("verb").lower().startswith("apag") else "on"
+        return m.group("target"), action
+    return None
+
+
+def run_luces(target_key, action):
+    target = LUCES_ALIASES.get(target_key.lower(), target_key)
+    result = subprocess.run(
+        ["python3", LUCES_SCRIPT, target, action],
+        capture_output=True, text=True, timeout=20,
+    )
+    if result.returncode == 0:
+        return result.stdout.strip() or f"{target}: {action}"
+    err = (result.stderr or result.stdout).strip()
+    return f"No se pudo controlar '{target}': {err[:200]}"
+
+
 def send_wake_packet():
     result = subprocess.run(
         ["python3", os.path.join(HOME, "wake.py")],
@@ -619,6 +668,19 @@ def main():
                 try:
                     api_call("sendMessage", {"chat_id": CHAT_ID, "text": answer})
                     print("borrador de tweet creado (lenguaje natural)", flush=True)
+                except Exception as e:
+                    print(f"sendMessage error: {e}", flush=True)
+                continue
+            luces_req = parse_luces(text)
+            if luces_req:
+                target_key, action = luces_req
+                try:
+                    answer = run_luces(target_key, action)
+                except Exception as e:
+                    answer = f"Error controlando la luz: {e}"
+                try:
+                    api_call("sendMessage", {"chat_id": CHAT_ID, "text": answer})
+                    print(f"luces: {answer[:80]}", flush=True)
                 except Exception as e:
                     print(f"sendMessage error: {e}", flush=True)
                 continue

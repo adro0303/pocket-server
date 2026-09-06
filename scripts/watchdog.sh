@@ -109,7 +109,19 @@ fi
 kill_line=$(echo "$new_logcat" | grep -Ei 'lowmemorykiller|Out of memory|Killed process' | tail -1)
 if [ -n "$kill_line" ]; then
   echo "$(ts) proceso matado por falta de RAM: $kill_line" >> "$LOG"
-  send_telegram "El sistema del J5 acaba de matar un proceso por falta de RAM: $(echo "$kill_line" | sed 's/^.*: *//' | cut -c1-200)"
+  # ponytail: la mayoria de estos kills son Android liberando apps normales
+  # en segundo plano (Firefox, F-Droid...) sin relacion con el bridge - solo
+  # avisar por Telegram si el uid matado es Termux o Tailscale (lo unico que
+  # de verdad rompe el proyecto). Si no se puede mapear el uid a paquete,
+  # avisar igual por si acaso (mismo motivo que el incidente original de 14h).
+  kill_uid=$(echo "$kill_line" | grep -oE 'uid [0-9]+' | grep -oE '[0-9]+')
+  kill_pkg=""
+  [ -n "$kill_uid" ] && kill_pkg=$(su -c "pm list packages -U --uid $kill_uid" 2>/dev/null | sed -n 's/^package:\(.*\) uid:.*/\1/p')
+  if [ -z "$kill_uid" ] || [ "$kill_pkg" = "com.termux" ] || [ "$kill_pkg" = "com.tailscale.ipn" ]; then
+    send_telegram "El sistema del J5 acaba de matar un proceso por falta de RAM: $(echo "$kill_line" | sed 's/^.*: *//' | cut -c1-200)"
+  else
+    echo "$(ts) kill de $kill_pkg (uid $kill_uid), no relevante para el bridge, sin avisar" >> "$LOG"
+  fi
 fi
 
 LOWMEM_STATE="$STATE_DIR/lowmem-alert-state.txt"
